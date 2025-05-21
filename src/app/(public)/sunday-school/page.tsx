@@ -17,18 +17,35 @@ import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
 import { POLL_SUNDAY_SCHOOL } from "@/constants/polls/sundaySchool";
 
+// Define a type for our formatted answers
+type FormattedAnswer = {
+  id: number;
+  pollId: string;
+  question: string;
+  kind: "unique" | "multiple";
+  answer: number[] | { id: number; text: string }[];
+  otherText?: string;
+};
+
 export default function SundaySchoolPollPage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<{ [key: number]: number[] }>({});
   const [isComplete, setIsComplete] = useState(false);
   const [otherText, setOtherText] = useState<{ [key: number]: string }>({});
   const [answeredQuestionIds, setAnsweredQuestionIds] = useState<number[]>([]);
+  const [formattedAnswers, setFormattedAnswers] = useState<FormattedAnswer[]>(
+    []
+  );
 
   const testQuestions = POLL_SUNDAY_SCHOOL;
   const currentQuestion = testQuestions[currentQuestionIndex];
-  const progress = Math.round(
-    ((answeredQuestionIds.length + 1) / testQuestions.length) * 100
-  );
+
+  // Calculate progress based on current position
+  const currentPosition = answeredQuestionIds.includes(currentQuestion.id)
+    ? answeredQuestionIds.length
+    : answeredQuestionIds.length + 1;
+
+  const progress = Math.round((currentPosition / testQuestions.length) * 100);
 
   const handleUniqueAnswer = (value: string) => {
     const optionId = parseInt(value);
@@ -85,6 +102,38 @@ export default function SundaySchoolPollPage() {
     return currentIndex + 1;
   };
 
+  const formatAnswers = () => {
+    const formatted: FormattedAnswer[] = [];
+
+    // Process each question that has been answered
+    Object.entries(answers).forEach(([questionId, answerIds]) => {
+      const question = testQuestions.find((q) => q.id === parseInt(questionId));
+      if (!question) return;
+
+      // Format answers as objects with id and text for display
+      const formattedAnswer = answerIds.map((answerId) => {
+        const option = question.options.find((opt) => opt.id === answerId);
+        return {
+          id: answerId,
+          text: option?.text || "Unknown option",
+        };
+      });
+
+      formatted.push({
+        id: question.id,
+        pollId: question.pollId,
+        question: question.question,
+        kind: question.kind,
+        answer: formattedAnswer,
+        ...(question.otherOption && otherText[question.id]
+          ? { otherText: otherText[question.id] }
+          : {}),
+      });
+    });
+
+    return formatted;
+  };
+
   const handleNext = () => {
     // Add current question to answered questions
     if (!answeredQuestionIds.includes(currentQuestion.id)) {
@@ -96,8 +145,13 @@ export default function SundaySchoolPollPage() {
     if (nextIndex < testQuestions.length) {
       setCurrentQuestionIndex(nextIndex);
     } else {
+      // Format answers before completing
+      const formatted = formatAnswers();
+      setFormattedAnswers(formatted);
       setIsComplete(true);
-      console.log("data: ", answers);
+
+      // Log the formatted answers to console
+      console.log("Poll answers:", formatted);
     }
   };
 
@@ -140,29 +194,34 @@ export default function SundaySchoolPollPage() {
             <p className="mb-4">Suas respostas foram salvas.</p>
             <div className="bg-muted p-4 rounded-md overflow-auto">
               <p className="font-medium mb-2">Your answers:</p>
-              {Object.entries(answers).map(([questionId, answerIds]) => {
-                const question = testQuestions.find(
-                  (q) => q.id === parseInt(questionId)
-                );
-                if (!question) return null;
-
-                return (
-                  <div key={questionId} className="mb-4">
-                    <p className="font-medium">{question.question}</p>
-                    <ul className="list-disc pl-5 mt-1">
-                      {answerIds.map((answerId) => {
-                        const option = question.options.find(
-                          (o) => o.id === answerId
-                        );
-                        return <li key={answerId}>{option?.text}</li>;
-                      })}
-                      {question.otherOption && otherText[question.id] && (
-                        <li>Other: {otherText[question.id]}</li>
-                      )}
-                    </ul>
-                  </div>
-                );
-              })}
+              {formattedAnswers.map((answer) => (
+                <div key={answer.id} className="mb-4">
+                  <p className="font-medium">{answer.question}</p>
+                  <ul className="list-disc pl-5 mt-1">
+                    {Array.isArray(answer.answer) &&
+                      (typeof answer.answer[0] === "number"
+                        ? answer.answer.map((id) => {
+                            const question = testQuestions.find(
+                              (q) => q.id === answer.id
+                            );
+                            const option = question?.options.find(
+                              (o) => o.id === id
+                            );
+                            return (
+                              <li key={String(id)}>
+                                {option?.text || `Option ${id}`}
+                              </li>
+                            );
+                          })
+                        : answer.answer.map((opt) =>
+                            typeof opt === "object" && opt !== null ? (
+                              <li key={opt.id}>{opt.text}</li>
+                            ) : null
+                          ))}
+                    {answer.otherText && <li>Other: {answer.otherText}</li>}
+                  </ul>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -177,8 +236,7 @@ export default function SundaySchoolPollPage() {
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">
-                Pergunta {answeredQuestionIds.length + 1} de{" "}
-                {testQuestions.length}
+                Question {currentQuestionIndex + 1} of {testQuestions.length}
               </span>
               <span className="text-sm font-medium">{progress}%</span>
             </div>
@@ -269,7 +327,7 @@ export default function SundaySchoolPollPage() {
               </>
             ) : (
               <>
-                Enviar <CheckCircle2 className="ml-1 h-4 w-4" />
+                Submit <CheckCircle2 className="ml-1 h-4 w-4" />
               </>
             )}
           </Button>
