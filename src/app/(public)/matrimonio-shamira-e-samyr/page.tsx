@@ -48,17 +48,38 @@ export default function MatrimonioShamiraESamyrPage() {
     const driveUrl =
       "https://drive.google.com/drive/folders/1pbtoBECjWNW7CyB7MvhWX06YT7W0iNLb?usp=sharing";
 
+    // Check if device is mobile (iOS or Android)
+    const isMobile =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent
+      );
+
+    // Specific check for iOS
     const isIOS =
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
 
-    if (isIOS) {
-      window.location.href = `Googledrive://${driveUrl}`;
+    // Specific check for Android
+    const isAndroid = /Android/i.test(navigator.userAgent);
 
+    if (isMobile) {
+      if (isIOS) {
+        // iOS uses the Googledrive:// protocol
+        window.location.href = `Googledrive://${driveUrl}`;
+      } else if (isAndroid) {
+        // Android intent URI format
+        window.location.href = `intent://${driveUrl.replace(
+          "https://",
+          ""
+        )}#Intent;package=com.google.android.apps.docs;scheme=https;end`;
+      }
+
+      // Fallback if app doesn't open after a short delay
       setTimeout(() => {
         window.open(driveUrl, "_blank");
       }, 500);
     } else {
+      // For desktop, just open in browser
       window.open(driveUrl, "_blank");
     }
   };
