@@ -45,10 +45,22 @@ export default function MatrimonioShamiraESamyrPage() {
   };
 
   const handleRedirect = () => {
-    window.open(
-      "https://drive.google.com/drive/folders/1pbtoBECjWNW7CyB7MvhWX06YT7W0iNLb?usp=sharing",
-      "_blank"
-    );
+    const driveUrl =
+      "https://drive.google.com/drive/folders/1pbtoBECjWNW7CyB7MvhWX06YT7W0iNLb?usp=sharing";
+
+    const isIOS =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+
+    if (isIOS) {
+      window.location.href = `Googledrive://${driveUrl}`;
+
+      setTimeout(() => {
+        window.open(driveUrl, "_blank");
+      }, 500);
+    } else {
+      window.open(driveUrl, "_blank");
+    }
   };
 
   return (
