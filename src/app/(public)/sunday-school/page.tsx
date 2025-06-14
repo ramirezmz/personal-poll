@@ -39,6 +39,7 @@ export default function SundaySchoolPollPage() {
   const [isComplete, setIsComplete] = useState(false);
   const [otherText, setOtherText] = useState<{ [key: number]: string }>({});
   const [answeredQuestionIds, setAnsweredQuestionIds] = useState<number[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   const testQuestions = POLL_SUNDAY_SCHOOL;
   const currentQuestion = testQuestions[currentQuestionIndex];
@@ -185,6 +186,7 @@ export default function SundaySchoolPollPage() {
 
   const handleSend = async (payload: AvailableQuestionsList) => {
     try {
+      setIsLoading(true);
       await personalCreate(payload);
       toast.success("Mensagem enviada com sucesso!", {
         description: "Obrigado por preencher o formulário.",
@@ -193,6 +195,8 @@ export default function SundaySchoolPollPage() {
     } catch (error) {
       toast.error("Erro ao enviar a mensagem.");
       console.error(error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -400,7 +404,11 @@ export default function SundaySchoolPollPage() {
           >
             <ArrowLeft className="mr-1 h-4 w-4" /> Previous
           </Button>
-          <Button onClick={handleNext} disabled={!isAnswered()} size="sm">
+          <Button
+            onClick={handleNext}
+            disabled={!isAnswered() || isLoading}
+            size="sm"
+          >
             {currentQuestionIndex < testQuestions.length - 1 ? (
               <>
                 Next <ArrowRight className="ml-1 h-4 w-4" />
