@@ -3,7 +3,7 @@ export type PollOptionType = {
   text: string;
 };
 
-export type PollKind = "unique" | "multiple";
+export type PollKind = "unique" | "multiple" | "text";
 
 export type ConditionalAnswerMatch = {
   [questionId: string]: number[];

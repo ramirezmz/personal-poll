@@ -16,9 +16,15 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
 import { POLL_SUNDAY_SCHOOL } from "@/constants/polls/sundaySchool";
+import {
+  AvailableQuestionsList,
+  personalCreate,
+  PollAnswered,
+} from "@/services/notion/create";
+import { toast } from "sonner";
 
 // Define a type for our formatted answers
-type FormattedAnswer = {
+export type FormattedAnswer = {
   id: number;
   pollId: string;
   question: string;
@@ -33,9 +39,6 @@ export default function SundaySchoolPollPage() {
   const [isComplete, setIsComplete] = useState(false);
   const [otherText, setOtherText] = useState<{ [key: number]: string }>({});
   const [answeredQuestionIds, setAnsweredQuestionIds] = useState<number[]>([]);
-  const [formattedAnswers, setFormattedAnswers] = useState<FormattedAnswer[]>(
-    []
-  );
 
   const testQuestions = POLL_SUNDAY_SCHOOL;
   const currentQuestion = testQuestions[currentQuestionIndex];
@@ -49,7 +52,8 @@ export default function SundaySchoolPollPage() {
 
   const handleUniqueAnswer = (value: string) => {
     const optionId = parseInt(value);
-    setAnswers({ ...answers, [currentQuestion.id]: [optionId] });
+    const payload = { ...answers, [currentQuestion.id]: [optionId] };
+    setAnswers(payload);
   };
 
   const handleMultipleAnswer = (optionId: number, checked: boolean) => {
@@ -58,11 +62,14 @@ export default function SundaySchoolPollPage() {
       ? [...currentAnswers, optionId]
       : currentAnswers.filter((id) => id !== optionId);
 
-    setAnswers({ ...answers, [currentQuestion.id]: newAnswers });
+    const payload = { ...answers, [currentQuestion.id]: newAnswers };
+
+    setAnswers(payload);
   };
 
   const handleOtherAnswer = (value: string) => {
-    setOtherText({ ...otherText, [currentQuestion.id]: value });
+    const payload = { ...otherText, [currentQuestion.id]: value };
+    setOtherText(payload);
   };
 
   const getNextQuestionIndex = (
@@ -102,9 +109,33 @@ export default function SundaySchoolPollPage() {
     return currentIndex + 1;
   };
 
-  const formatAnswers = () => {
-    const formatted: FormattedAnswer[] = [];
+  const formatAnswers = (): AvailableQuestionsList => {
+    const formatted: { [key: string]: PollAnswered } = {};
+    const hasOtherText = Object.keys(otherText).length > 0;
+    if (hasOtherText) {
+      Object.entries(otherText).forEach(([questionId, text]) => {
+        const question = testQuestions.find(
+          (q) => q.id === parseInt(questionId)
+        );
+        if (!question) return;
 
+        if (!formatted[question.pollId]) {
+          formatted[question.pollId] = {
+            id: question.id,
+            pollId: question.pollId,
+            question: question.question,
+            kind: question.kind,
+            answer: [],
+          };
+        }
+
+        // Add the other text answer
+        formatted[question.pollId].answer.push({
+          id: parseInt(questionId),
+          text: text,
+        });
+      });
+    }
     // Process each question that has been answered
     Object.entries(answers).forEach(([questionId, answerIds]) => {
       const question = testQuestions.find((q) => q.id === parseInt(questionId));
@@ -119,22 +150,21 @@ export default function SundaySchoolPollPage() {
         };
       });
 
-      formatted.push({
-        id: question.id,
-        pollId: question.pollId,
-        question: question.question,
-        kind: question.kind,
-        answer: formattedAnswer,
-        ...(question.otherOption && otherText[question.id]
-          ? { otherText: otherText[question.id] }
-          : {}),
+      Object.assign(formatted, {
+        [question.pollId]: {
+          id: question.id,
+          pollId: question.pollId,
+          question: question.question,
+          kind: question.kind,
+          answer: formattedAnswer,
+        },
       });
     });
 
-    return formatted;
+    return formatted as AvailableQuestionsList;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     // Add current question to answered questions
     if (!answeredQuestionIds.includes(currentQuestion.id)) {
       setAnsweredQuestionIds([...answeredQuestionIds, currentQuestion.id]);
@@ -145,13 +175,24 @@ export default function SundaySchoolPollPage() {
     if (nextIndex < testQuestions.length) {
       setCurrentQuestionIndex(nextIndex);
     } else {
-      // Format answers before completing
       const formatted = formatAnswers();
-      setFormattedAnswers(formatted);
-      setIsComplete(true);
 
       // Log the formatted answers to console
       console.log("Poll answers:", formatted);
+      await handleSend(formatted);
+    }
+  };
+
+  const handleSend = async (payload: AvailableQuestionsList) => {
+    try {
+      await personalCreate(payload);
+      toast.success("Mensagem enviada com sucesso!", {
+        description: "Obrigado por preencher o formulário.",
+      });
+      setIsComplete(true);
+    } catch (error) {
+      toast.error("Erro ao enviar a mensagem.");
+      console.error(error);
     }
   };
 
@@ -175,6 +216,12 @@ export default function SundaySchoolPollPage() {
   };
 
   const isAnswered = () => {
+    if (currentQuestion.kind === "text") {
+      return (
+        otherText[currentQuestion.id] &&
+        otherText[currentQuestion.id].trim() !== ""
+      );
+    }
     return (
       answers[currentQuestion.id] && answers[currentQuestion.id].length > 0
     );
@@ -190,7 +237,7 @@ export default function SundaySchoolPollPage() {
               Muito obrigado!
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          {/* <CardContent>
             <p className="mb-4">Suas respostas foram salvas.</p>
             <div className="bg-muted p-4 rounded-md overflow-auto">
               <p className="font-medium mb-2">Your answers:</p>
@@ -223,7 +270,7 @@ export default function SundaySchoolPollPage() {
                 </div>
               ))}
             </div>
-          </CardContent>
+          </CardContent> */}
         </Card>
       </div>
     );
@@ -245,71 +292,104 @@ export default function SundaySchoolPollPage() {
           <CardTitle className="mt-4">{currentQuestion.question}</CardTitle>
         </CardHeader>
         <CardContent>
-          {currentQuestion.kind === "unique" ? (
-            <RadioGroup
-              value={answers[currentQuestion.id]?.[0]?.toString() || ""}
-              onValueChange={handleUniqueAnswer}
-              className="space-y-3"
-            >
-              {currentQuestion.options.map((option) => (
-                <div
-                  key={option.id}
-                  className="flex items-center space-x-2 border p-3 rounded-md hover:bg-accent/50"
-                >
-                  <RadioGroupItem
-                    value={option.id.toString()}
-                    id={`option-${option.id}`}
-                  />
-                  <Label
-                    htmlFor={`option-${option.id}`}
-                    className="w-full cursor-pointer"
+          {(() => {
+            switch (currentQuestion.kind) {
+              case "unique":
+                return (
+                  <RadioGroup
+                    value={answers[currentQuestion.id]?.[0]?.toString() || ""}
+                    onValueChange={handleUniqueAnswer}
+                    className="space-y-3"
                   >
-                    {option.text}
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
-          ) : (
-            <div className="space-y-3">
-              {currentQuestion.options.map((option) => (
-                <div
-                  key={option.id}
-                  className="flex items-center space-x-2 border p-3 rounded-md hover:bg-accent/50"
-                >
-                  <Checkbox
-                    id={`option-${option.id}`}
-                    checked={
-                      answers[currentQuestion.id]?.includes(option.id) || false
-                    }
-                    onCheckedChange={(checked) =>
-                      handleMultipleAnswer(option.id, checked === true)
-                    }
-                  />
-                  <Label
-                    htmlFor={`option-${option.id}`}
-                    className="w-full cursor-pointer"
-                  >
-                    {option.text}
-                  </Label>
-                </div>
-              ))}
+                    {currentQuestion.options.map((option) => (
+                      <div
+                        key={option.id}
+                        className="flex items-center space-x-2 border p-3 rounded-md hover:bg-accent/50"
+                      >
+                        <RadioGroupItem
+                          value={option.id.toString()}
+                          id={`option-${option.id}`}
+                        />
+                        <Label
+                          htmlFor={`option-${option.id}`}
+                          className="w-full cursor-pointer"
+                        >
+                          {option.text}
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                );
 
-              {currentQuestion.otherOption && (
-                <div className="border p-3 rounded-md mt-2">
-                  <Label htmlFor="other-input" className="mb-1 block">
-                    Other (please specify):
-                  </Label>
-                  <Input
-                    id="other-input"
-                    type="text"
-                    value={otherText[currentQuestion.id] || ""}
-                    onChange={(e) => handleOtherAnswer(e.target.value)}
-                    className="mt-1"
-                  />
-                </div>
-              )}
-            </div>
-          )}
+              case "multiple":
+                return (
+                  <div className="space-y-3">
+                    {currentQuestion.options.map((option) => (
+                      <div
+                        key={option.id}
+                        className="flex items-center space-x-2 border p-3 rounded-md hover:bg-accent/50"
+                      >
+                        <Checkbox
+                          id={`option-${option.id}`}
+                          checked={
+                            answers[currentQuestion.id]?.includes(option.id) ||
+                            false
+                          }
+                          onCheckedChange={(checked) =>
+                            handleMultipleAnswer(option.id, checked === true)
+                          }
+                        />
+                        <Label
+                          htmlFor={`option-${option.id}`}
+                          className="w-full cursor-pointer"
+                        >
+                          {option.text}
+                        </Label>
+                      </div>
+                    ))}
+
+                    {currentQuestion.otherOption && (
+                      <div className="border p-3 rounded-md mt-2">
+                        <Label htmlFor="other-input" className="mb-1 block">
+                          Outro (por favor especifique):
+                        </Label>
+                        <Input
+                          id="other-input"
+                          type="text"
+                          value={otherText[currentQuestion.id] || ""}
+                          onChange={(e) => handleOtherAnswer(e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+
+              case "text":
+                return (
+                  <div className="space-y-3">
+                    <Input
+                      id="text-input"
+                      type="text"
+                      value={otherText[currentQuestion.id] || ""}
+                      onChange={(e) => handleOtherAnswer(e.target.value)}
+                      className="mt-1"
+                    />
+
+                    {currentQuestion.pollId === "Nome" && (
+                      <Button
+                        variant="outline"
+                        onClick={() => handleOtherAnswer("Anonymous")}
+                      >
+                        Send as Anonymous
+                      </Button>
+                    )}
+                  </div>
+                );
+              default:
+                return <p>Unknown question type</p>;
+            }
+          })()}
         </CardContent>
         <CardFooter className="flex justify-between border-t p-4 mt-4">
           <Button

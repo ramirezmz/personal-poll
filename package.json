@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "test": "node --test src/**/*.spec.ts",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
