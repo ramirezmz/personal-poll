@@ -380,14 +380,14 @@ export default function SundaySchoolPollPage() {
                       className="mt-1"
                     />
 
-                    {currentQuestion.pollId === "Nome" && (
+                    {/* {currentQuestion.pollId === "Nome" && (
                       <Button
                         variant="outline"
                         onClick={() => handleOtherAnswer("Anonymous")}
                       >
                         Send as Anonymous
                       </Button>
-                    )}
+                    )} */}
                   </div>
                 );
               default:

@@ -224,7 +224,7 @@ export const POLL_SUNDAY_SCHOOL: PollSundaySchoolType = [
   },
   {
     id: 9,
-    question: "Gostaria de compartilhar seu nome?",
+    question: "Qual é o seu nome?",
     pollId: "Nome",
     kind: "text",
     options: [],
